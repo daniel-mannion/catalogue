@@ -1,0 +1,4 @@
+[project]
+name = 'catalogue'
+version = '0.0.0'
+dependencies = ["psycopg2-binary"]
