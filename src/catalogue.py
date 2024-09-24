@@ -37,15 +37,25 @@ class SQLDatabase:
         tables = self.select('table_name', 'information_schema.tables',conditions)
         return tables
     
-    def select(self, element, source, conditions=None):
+    def select(self, element, source, conditions=None, tolerance_real=1e-6):
         if(conditions is None):
             sql_command = "SELECT %s FROM %s"%(element, source)
             print(sql_command)
             return self.query(sql_command)
         else:
-            conditions_str = [k+"=%s" for k in conditions.keys()]
+            conditions_str = []
+            for k in conditions.keys():
+                sql_type = pythonTypeToSQLType(type(conditions[k]))
+                if(sql_type == 'varchar'):
+                    conditions_str.append(k+"='%s'"%(conditions[k]))
+                elif(sql_type == 'real'):
+                    conditions_str.append("abs((%s-%f)/(%f))<=%f"%(k, conditions[k],conditions[k], tolerance_real))
+                else:
+                    conditions_str.append("%s=%s"%(k, conditions[k]))
+            
             conditions_str = " AND ".join(conditions_str)
             sql_command = "SELECT %s FROM %s WHERE %s"%(element, source, conditions_str)
+            print(sql_command)
             conditions_vars = [conditions[k] for k in conditions.keys()]
             return self.query(sql_command, conditions_vars)
         
