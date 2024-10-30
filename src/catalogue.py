@@ -34,7 +34,7 @@ class SQLDatabase:
     def listTables(self):
         conditions = {"table_schema":'public',
                       "table_type":'BASE TABLE'}
-        tables = self.select('table_name', 'information_schema.tables',conditions)
+        tables, _ = self.select('table_name', 'information_schema.tables',conditions)
         return tables
     
     def select(self, element, source, conditions=None, tolerance_real=1e-6):
@@ -70,13 +70,19 @@ class SQLDatabase:
         else:
             result = cursor.fetchall()
         conn.close()
-        return result
+        if(cursor.description):
+            colnames = [desc[0] for desc in cursor.description]
+            return result, colnames
+        else:
+            return result, None
     
     def queryTable(self, table_name, conditions=None, return_elements="*"):
-        return self.select(return_elements, table_name, conditions)
+        data, colnames = self.select(return_elements, table_name, conditions)
+        return data, colnames
     def queryTableColumnNames(self, table_name):
         conditions = {'table_name':table_name}
-        return self.select('column_name','information_schema.columns',conditions)
+        resp, _ = self.select('column_name','information_schema.columns',conditions)
+        return resp
     def insertInTable(self, entry, table_name):
         destination_str = [k for k in entry.keys()]
         destination_str = ', '.join(destination_str)
@@ -91,14 +97,15 @@ class SQLDatabase:
         print(sql_insert_query)
         self.query(sql_insert_query, value_vars, insert=True)
     def filterTable(self, table_name, conditions):
-        data = self.select('*', table_name, conditions)
-        return data
+        data, colnames = self.select('*', table_name, conditions)
+        return data, colnames
     def getPrimaryKeyColumn(self, table_name):
         select_element = 'C.COLUMN_NAME'
         source = 'INFORMATION_SCHEMA.TABLE_CONSTRAINTS T JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE C ON C.CONSTRAINT_NAME=T.CONSTRAINT_NAME'
         conditions = {'C.TABLE_NAME':table_name,
                       'T.CONSTRAINT_TYPE':'PRIMARY KEY'}
-        return self.select(select_element, source, conditions)
+        resp, _ = self.select(select_element, source, conditions)
+        return resp[0][0]
     
     def createTable(self, table_name, columns):
         column_datatypes = [pythonTypeToSQLType(c[1]) for c in columns]
@@ -144,12 +151,10 @@ class Catalogue:
         return "Catalogue with Name: %s"%self.name
     def getPrimaryKey(self):
         primary_key = self.database.getPrimaryKeyColumn(self.name)
-        return primary_key[0][0]
+        return primary_key
     def listContents(self):
-        headers = self.listHeaders()
-        return_elements = ", ".join(headers)
-        contents = self.database.queryTable(self.name, return_elements = return_elements)
-        contents_df = pd.DataFrame(contents, columns=headers)
+        contents, colnames = self.database.queryTable(self.name)
+        contents_df = pd.DataFrame(contents, columns=colnames)
         contents_df.set_index(self.primary_key_column)
         return contents_df
     def listHeaders(self):
@@ -170,10 +175,8 @@ class Catalogue:
             self.initialised = True
             self.insert(entry)
     def filter(self, conditions):
-        data = self.database.filterTable(self.name, conditions)
-        headers = self.listHeaders()
-        data_df = pd.DataFrame(data, columns=headers)
-
+        data, colnames = self.database.filterTable(self.name, conditions)
+        data_df = pd.DataFrame(data, columns=colnames)
         return data_df
     @staticmethod
     def listCatalogues(database):
