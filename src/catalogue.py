@@ -59,12 +59,12 @@ class SQLDatabase:
             conditions_vars = [conditions[k] for k in conditions.keys()]
             return self.query(sql_command, conditions_vars)
         
-    def query(self, query_str, vars=None, insert=False):
+    def query(self, query_str, vars=None, insert=False, delete=False):
         conn = psycopg2.connect(**self.connection_info)
         logging.info("SQL Query: %s"%query_str)
         cursor = conn.cursor()
         cursor.execute(query_str, vars)
-        if(insert):
+        if(insert or delete):
             conn.commit()
             result = None
         else:
@@ -96,6 +96,21 @@ class SQLDatabase:
         sql_insert_query = 'INSERT INTO %s VALUES %s'%(destination_str, value_str)
         print(sql_insert_query)
         self.query(sql_insert_query, value_vars, insert=True)
+    def delete_from_table(self, conditions, table_name, tolerance_real=1e-6):
+        conditions_str = []
+        for k in conditions.keys():
+            sql_type = pythonTypeToSQLType(type(conditions[k]))
+            if(sql_type == 'varchar'):
+                conditions_str.append(k+"='%s'"%(conditions[k]))
+            elif(sql_type == 'real'):
+                conditions_str.append("abs((%s-%f)/(%f))<=%f"%(k, conditions[k],conditions[k], tolerance_real))
+            else:
+                    conditions_str.append("%s=%s"%(k, conditions[k]))
+        conditions_str = " AND ".join(conditions_str)
+        sql_command = "DELETE FROM %s WHERE %s"%(table_name, conditions_str)
+        print(sql_command)
+        conditions_vars = [conditions[k] for k in conditions.keys()]
+        return self.query(sql_command, conditions_vars, delete=True)
     def filterTable(self, table_name, conditions):
         data, colnames = self.select('*', table_name, conditions)
         return data, colnames
@@ -174,6 +189,8 @@ class Catalogue:
             self.primary_key_column = self.getPrimaryKey()
             self.initialised = True
             self.insert(entry)
+    def delete(self, conditions):
+        self.database.delete_from_table(conditions, self.name)
     def filter(self, conditions):
         data, colnames = self.database.filterTable(self.name, conditions)
         data_df = pd.DataFrame(data, columns=colnames)
