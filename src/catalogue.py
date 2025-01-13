@@ -59,7 +59,7 @@ class SQLDatabase:
             conditions_vars = [conditions[k] for k in conditions.keys()]
             return self.query(sql_command, conditions_vars)
         
-    def query(self, query_str, vars=None, insert=False, delete=False, createtable=False):
+    def query(self, query_str, vars=None, insert=False, delete=False, createtable=False, update=False):
         conn = psycopg2.connect(**self.connection_info)
         logging.info("SQL Query: %s"%query_str)
         cursor = conn.cursor()
@@ -67,8 +67,9 @@ class SQLDatabase:
         if(insert or delete):
             conn.commit()
             result = cursor.fetchall()
-        elif(createtable):
+        elif(createtable or update):
             conn.commit()
+            result = None
         else:
             result = cursor.fetchall()
         conn.close()
@@ -113,6 +114,26 @@ class SQLDatabase:
         print(sql_command)
         conditions_vars = [conditions[k] for k in conditions.keys()]
         return self.query(sql_command, conditions_vars, delete=True)[0][0][0]
+    def update_in_table(self, table_name, conditions, update_values, tolerance_real=1e-6):
+        conditions_str = []
+        for k in conditions.keys():
+            sql_type = pythonTypeToSQLType(type(conditions[k]))
+            if(sql_type == 'varchar'):
+                conditions_str.append(k+"='%s'"%(conditions[k]))
+            elif(sql_type == 'real'):
+                conditions_str.append("abs((%s-%f)/(%f))<=%f"%(k, conditions[k],conditions[k], tolerance_real))
+            else:
+                    conditions_str.append("%s=%s"%(k, conditions[k]))
+        conditions_str = " AND ".join(conditions_str)
+
+        values_str = [str(k)+"=%s" for k in update_values.keys()]
+        values_str = ', '.join(values_str)
+        values_val = [update_values[k] for k in update_values.keys()]
+        
+
+        sql_command = "UPDATE %s SET %s WHERE %s"%(table_name, values_str, conditions_str)
+        
+        self.query(sql_command, values_val, update=True)
     def filterTable(self, table_name, conditions):
         data, colnames = self.select('*', table_name, conditions)
         return data, colnames
@@ -194,6 +215,8 @@ class Catalogue:
         return id
     def delete(self, conditions):
         return self.database.delete_from_table(conditions, self.name)
+    def update(self, filter_conditions, update_values):
+        self.database.update_in_table(self.name, filter_conditions, update_values)
     def filter(self, conditions):
         data, colnames = self.database.filterTable(self.name, conditions)
         data_df = pd.DataFrame(data, columns=colnames)
