@@ -59,7 +59,7 @@ class SQLDatabase:
             conditions_vars = [conditions[k] for k in conditions.keys()]
             return self.query(sql_command, conditions_vars)
         
-    def query(self, query_str, vars=None, insert=False, delete=False):
+    def query(self, query_str, vars=None, insert=False, delete=False, createtable=False):
         conn = psycopg2.connect(**self.connection_info)
         logging.info("SQL Query: %s"%query_str)
         cursor = conn.cursor()
@@ -67,6 +67,8 @@ class SQLDatabase:
         if(insert or delete):
             conn.commit()
             result = cursor.fetchall()
+        elif(createtable):
+            conn.commit()
         else:
             result = cursor.fetchall()
         conn.close()
@@ -132,7 +134,7 @@ class SQLDatabase:
         query_str = "%s(id int GENERATED ALWAYS AS IDENTITY, %s, PRIMARY KEY (id))"%(query_str, columns_str)
 
         print(query_str)
-        self.query(query_str, insert=True)
+        self.query(query_str, createtable=True)
         # Now add auto increment and not null to primary key
         # query_str = "ALTER TABLE %s ADD CONSTRAINT NOT NULL UNIQUE(%s)"%(table_name, primary_key)
         # self.query(query_str, insert = True)
