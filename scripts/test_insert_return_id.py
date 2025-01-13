@@ -6,17 +6,15 @@ sql = SQLDatabase(database="demo",
                         user="user",
                         password="demo")
 
-cat = Catalogue(sql, 'deletetest', force=True)
+cat = Catalogue(sql, 'inserttest', force=True)
 
 x = {'test':123}
 y = {'test':666}
-cat.insert(x)
+id = cat.insert(x)
 cat.insert(y)
-print("Before delete:")
+print("Inserted ID:")
+print(id)
+
+print("contents")
 print(cat.listContents())
 
-id=cat.delete({'test':123})
-print("After delete")
-print(cat.listContents())
-print("Deleted id: ")
-print(id)

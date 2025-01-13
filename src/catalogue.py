@@ -66,7 +66,7 @@ class SQLDatabase:
         cursor.execute(query_str, vars)
         if(insert or delete):
             conn.commit()
-            result = None
+            result = cursor.fetchall()
         else:
             result = cursor.fetchall()
         conn.close()
@@ -93,9 +93,9 @@ class SQLDatabase:
         value_str = '(%s)'%value_str
         value_vars = [entry[k] for k in entry.keys()]
 
-        sql_insert_query = 'INSERT INTO %s VALUES %s'%(destination_str, value_str)
+        sql_insert_query = 'INSERT INTO %s VALUES %s RETURNING id'%(destination_str, value_str)
         print(sql_insert_query)
-        self.query(sql_insert_query, value_vars, insert=True)
+        return self.query(sql_insert_query, value_vars, insert=True)[0][0][0]
     def delete_from_table(self, conditions, table_name, tolerance_real=1e-6):
         conditions_str = []
         for k in conditions.keys():
@@ -107,10 +107,10 @@ class SQLDatabase:
             else:
                     conditions_str.append("%s=%s"%(k, conditions[k]))
         conditions_str = " AND ".join(conditions_str)
-        sql_command = "DELETE FROM %s WHERE %s"%(table_name, conditions_str)
+        sql_command = "DELETE FROM %s WHERE %s RETURNING id"%(table_name, conditions_str)
         print(sql_command)
         conditions_vars = [conditions[k] for k in conditions.keys()]
-        return self.query(sql_command, conditions_vars, delete=True)
+        return self.query(sql_command, conditions_vars, delete=True)[0][0][0]
     def filterTable(self, table_name, conditions):
         data, colnames = self.select('*', table_name, conditions)
         return data, colnames
@@ -182,15 +182,16 @@ class Catalogue:
         return blank_entry
     def insert(self, entry):
         if(self.initialised):
-            self.database.insertInTable(entry, self.name)
+            id = self.database.insertInTable(entry, self.name)
         else:
             columns = [(k, type(entry[k])) for k in entry.keys()]
             self.database.createTable(self.name, columns)
             self.primary_key_column = self.getPrimaryKey()
             self.initialised = True
-            self.insert(entry)
+            id = self.insert(entry)
+        return id
     def delete(self, conditions):
-        self.database.delete_from_table(conditions, self.name)
+        return self.database.delete_from_table(conditions, self.name)
     def filter(self, conditions):
         data, colnames = self.database.filterTable(self.name, conditions)
         data_df = pd.DataFrame(data, columns=colnames)
