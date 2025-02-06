@@ -1,4 +1,4 @@
 [project]
 name = 'catalogue'
-version = '0.0.6'
-dependencies = ["psycopg2-binary"]
+version = '0.0.7'
+dependencies = ["psycopg2-binary","pandas"]
